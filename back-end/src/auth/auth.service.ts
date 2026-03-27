@@ -1,128 +1,232 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import * as fs from 'fs';
-import * as path from 'path';
-import { MailerService } from './mailer/mailer.service'; // Import MailerService
-import * as crypto from 'crypto';
-
-const TOKEN_DB_PATH = path.join(__dirname, '../tokens.json');
-
-const fakeUsers = [
-  {
-    id: 1,
-    username: '123',
-    password: '123',
-    email: 'khavinhthuan114@gmail.com',
-  },
-  { id: 2, username: '1234', password: '1234', email: 'user1234@example.com' },
-];
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { User, UserDocument } from '../schemas/user.schema';
+import * as bcrypt from 'bcrypt';
+import { MailerService } from './mailer/mailer.service';
+import { Response } from 'express';
 
 @Injectable()
 export class AuthService {
   private readonly accessSecret = 'abc123';
   private readonly refreshSecret = 'JWT-refresh';
-  private readonly accessTokenExpiresIn = '1h';
-  private readonly refreshTokenExpiresIn = '7d';
+  private readonly resetSecret = 'JWT-reset';
 
   constructor(
     private readonly jwtService: JwtService,
-    private readonly mailerService: MailerService, // Inject MailerService
+    private readonly mailerService: MailerService,
+    @InjectModel('User') private readonly userModel: Model<User>,
   ) {}
 
-  private readTokenDB(): Record<string, { userId: number; expiresAt: number }> {
-    try {
-      const data = fs.readFileSync(TOKEN_DB_PATH, 'utf8');
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-      return JSON.parse(data);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
-      return {};
-    }
-  }
-
-  private writeTokenDB(
-    tokens: Record<string, { userId: number; expiresAt: number }>,
+  async register(
+    username: string,
+    email: string,
+    password: string,
+    role: string,
   ) {
-    fs.writeFileSync(TOKEN_DB_PATH, JSON.stringify(tokens, null, 2), 'utf8');
+    const existingUser = await this.userModel.findOne({
+      $or: [{ username }, { email }],
+    });
+    if (existingUser) {
+      throw new UnauthorizedException('Username hoặc Email đã tồn tại');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new this.userModel({
+      username,
+      email,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      password: hashedPassword,
+      role,
+    });
+    await newUser.save();
+    return { message: 'Đăng ký thành công' };
   }
 
-  validateUser(username: string, password: string) {
-    const user = fakeUsers.find(
-      (u) => u.username === username && u.password === password,
-    );
+  async validateUser(username: string, password: string) {
+    const user = (await this.userModel.findOne({ username })) as UserDocument;
     if (!user) {
       throw new UnauthorizedException('Invalid username or password');
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password: _, ...safeUser } = user;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid username or password');
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unused-vars
+    const { password: _, ...safeUser } = user.toObject();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return safeUser;
   }
 
-  generateTokens(user: any) {
+  async generateTokens(user: any, res: Response) {
     const accessToken = this.jwtService.sign(
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      { id: user.id, username: user.username },
+      { id: user._id, username: user.username },
       {
         secret: this.accessSecret,
-        expiresIn: String(this.accessTokenExpiresIn),
+        expiresIn: '15m',
       },
     );
-
     const refreshToken = this.jwtService.sign(
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      { id: user.id, username: user.username },
+      { id: user._id, username: user.username },
       {
         secret: this.refreshSecret,
-        expiresIn: String(this.refreshTokenExpiresIn),
+        expiresIn: '7d',
       },
     );
 
-    const tokens = this.readTokenDB();
-    tokens[refreshToken] = {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      userId: user.id,
-      expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-    };
-    this.writeTokenDB(tokens);
+    await this.userModel.findByIdAndUpdate(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      user._id,
+      {
+        accessToken,
+        refreshToken,
+      },
+      { new: true },
+    );
 
-    return { accessToken, refreshToken };
+    // Chỉ lưu refreshToken vào cookie, không cần lưu vào DB
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return { accessToken };
+  }
+
+  async revokeRefreshToken(refreshToken: string) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const decoded = this.jwtService.verify(refreshToken, {
+        secret: this.refreshSecret,
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      if (!decoded || !decoded.id) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      const userId = decoded.id;
+      const user = await this.userModel.findById(userId);
+
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      user.refreshToken = null;
+      await user.save();
+
+      return { message: 'Refresh token revoked successfully' };
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
   }
 
   verifyRefreshToken(refreshToken: string) {
-    const tokens = this.readTokenDB();
-    const tokenData = tokens[refreshToken];
-
-    if (!tokenData || tokenData.expiresAt < Date.now()) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const decoded = this.jwtService.verify(refreshToken, {
+        secret: this.refreshSecret,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      return { userId: decoded.id, username: decoded.username };
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
-
-    return { id: tokenData.userId, username: `user${tokenData.userId}` };
   }
 
-  revokeRefreshToken(refreshToken: string) {
-    const tokens = this.readTokenDB();
-    delete tokens[refreshToken];
-    this.writeTokenDB(tokens);
-  }
-
-  /**
-   * Phương thức gửi email reset mật khẩu
-   */
   async sendResetPasswordLink(username: string): Promise<string> {
-    // Tìm người dùng theo username
-    const user = fakeUsers.find((u) => u.username === username);
-    console.log(username);
+    const user = await this.userModel.findOne({ username });
     if (!user) {
-      throw new UnauthorizedException('Username không tồn tạii');
+      throw new UnauthorizedException('Username không tồn tại');
     }
 
-    // Tạo token reset mật khẩu
-    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetToken = this.jwtService.sign(
+      { id: user._id, username: user.username },
+      {
+        secret: this.resetSecret,
+        expiresIn: '1h',
+      },
+    );
 
-    // Gửi email chứa link reset mật khẩu
-    await this.mailerService.sendResetPasswordEmail(user.email, resetToken);
-
+    const resetLink = `http://your-frontend-url/reset-password?token=${resetToken}`;
+    await this.mailerService.sendResetPasswordEmail(user.email, resetLink);
     return 'Đường dẫn reset mật khẩu đã được gửi tới email của bạn.';
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<string> {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const decoded = this.jwtService.verify(token, {
+        secret: this.resetSecret,
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      if (!decoded || !decoded.id) {
+        throw new UnauthorizedException('Invalid or expired reset token');
+      }
+
+      const currentTime = Math.floor(Date.now() / 1000);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      if (decoded.exp && decoded.exp < currentTime) {
+        throw new UnauthorizedException('Reset token has expired');
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const user = await this.userModel.findOne({ username: decoded.username });
+      if (!user) {
+        throw new UnauthorizedException('Invalid or expired reset token');
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      await this.userModel.findByIdAndUpdate(user._id, {
+        password: hashedPassword,
+        resetToken: null,
+      });
+
+      return 'Mật khẩu đã được thay đổi thành công';
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      throw new UnauthorizedException('Invalid or expired reset token');
+    }
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('Người dùng không tồn tại');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const isPasswordValid = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Mật khẩu hiện tại không đúng');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.userModel.findByIdAndUpdate(userId, {
+      password: hashedNewPassword,
+    });
+    return { message: 'Đổi mật khẩu thành công' };
   }
 }
