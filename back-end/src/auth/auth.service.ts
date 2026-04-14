@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -18,6 +22,30 @@ export class AuthService {
     private readonly mailerService: MailerService,
     @InjectModel('User') private readonly userModel: Model<User>,
   ) {}
+
+  async getAccountByToken(accessToken: string): Promise<User> {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const decoded = this.jwtService.verify(accessToken, {
+        secret: this.accessSecret,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      if (decoded.exp * 1000 < Date.now()) {
+        throw new UnauthorizedException('Token đã hết hạn');
+      }
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const user = await this.userModel.findOne({ username: decoded.username });
+
+      if (!user) {
+        throw new UnauthorizedException('Không tìm thấy tài khoản');
+      }
+
+      return user;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      throw new UnauthorizedException('Token không hợp lệ');
+    }
+  }
 
   async register(
     username: string,
@@ -64,7 +92,7 @@ export class AuthService {
   async generateTokens(user: any, res: Response) {
     const accessToken = this.jwtService.sign(
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      { id: user._id, username: user.username },
+      { id: user._id, username: user.username, role: user.role },
       {
         secret: this.accessSecret,
         expiresIn: '15m',
@@ -72,13 +100,12 @@ export class AuthService {
     );
     const refreshToken = this.jwtService.sign(
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      { id: user._id, username: user.username },
+      { id: user._id, username: user.username, role: user.role },
       {
         secret: this.refreshSecret,
         expiresIn: '7d',
       },
     );
-
     await this.userModel.findByIdAndUpdate(
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       user._id,
@@ -136,8 +163,14 @@ export class AuthService {
       const decoded = this.jwtService.verify(refreshToken, {
         secret: this.refreshSecret,
       });
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      return { userId: decoded.id, username: decoded.username };
+      return {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+        userId: decoded.id,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+        username: decoded.username,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+        role: decoded.role,
+      };
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       throw new UnauthorizedException('Invalid or expired refresh token');
@@ -228,5 +261,23 @@ export class AuthService {
       password: hashedNewPassword,
     });
     return { message: 'Đổi mật khẩu thành công' };
+  }
+
+  async deleteAccountByUsername(
+    username: string,
+  ): Promise<{ message: string }> {
+    const user = await this.userModel.findOne({ username });
+
+    if (!user) {
+      throw new NotFoundException(
+        `Không tìm thấy tài khoản với username: ${username}`,
+      );
+    }
+
+    await this.userModel.deleteOne({ username });
+
+    return {
+      message: `Tài khoản với username ${username} đã bị xóa thành công`,
+    };
   }
 }
