@@ -5,38 +5,42 @@ export type GiangVienDocument = GiangVien & Document;
 
 @Schema()
 export class GiangVien {
-  @Prop({ required: true })
-  HoTen: string;
 
-  @Prop({ type: Date })
-  NgaySinh: Date;
+    @Prop({ required: true})
+    MaGV: string;
+    
+    @Prop({ required: true })
+    HoTen: string;
 
-  @Prop()
-  GioiTinh: string;
+    @Prop({ type: Date })
+    NgaySinh: Date;
 
-  @Prop()
-  DiaChi: string;
+    @Prop()
+    GioiTinh: string;
 
-  @Prop()
-  SoDienThoai: string;
+    @Prop()
+    DiaChi: string;
 
-  @Prop()
-  ChucVu: string;
+    @Prop()
+    SoDienThoai: string;
 
-  @Prop()
-  Khoa: string;
+    @Prop()
+    ChucVu: string;
 
-  @Prop()
-  CCCD: string;
+    @Prop()
+    Khoa: string;
 
-  @Prop()
-  TrinhDo: string;
+    @Prop()
+    CCCD: string;
 
-  @Prop({ type: Date })
-  NgayVaoLam: Date;
+    @Prop()
+    TrinhDo: string;
 
-  @Prop({ type: Date, default: Date.now })
-  NgayCapNhat: Date;
+    @Prop({ type: Date, default: Date.now })
+    NgayVaoLam: Date;
+
+    @Prop({ type: Date, default: Date.now })
+    NgayCapNhat: Date;
 }
 
 export const GiangVienSchema = SchemaFactory.createForClass(GiangVien);
