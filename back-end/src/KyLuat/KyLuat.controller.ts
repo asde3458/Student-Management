@@ -15,6 +15,7 @@ import { AuthService } from 'src/auth/auth.service';
 import { KyLuatService } from './KyLuat.service';
 import { JWTAuthGuard } from 'src/auth/guards/jwt.guard';
 import { CreateDisciplineDto } from './dto/C&U-discipline.dto';
+
 @Controller('KyLuat')
 export class KyLuatController {
   sinhVienModel: any;
@@ -23,11 +24,11 @@ export class KyLuatController {
     private readonly authService: AuthService,
   ) {}
 
-  @Get('get_disciplinebyMSSV/:mssv')
+  @Get('get-disciplinebyMSSV/:mssv')
   @UseGuards(JWTAuthGuard)
   async getStudent(@Param('mssv') mssv: string, @Request() req: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (req.user.role !== 'Admin' && req.user.username !== mssv) {
+    if (req.user.role !== 'admin' && req.user.username !== mssv) {
       throw new UnauthorizedException(
         'Không có quyền xem thông tin sinh viên này',
       );
@@ -35,11 +36,11 @@ export class KyLuatController {
     return this.kyLuatService.getDisciplineByMSSV(mssv);
   }
 
-  @Get('get_discipline/:_id')
+  @Get('get-discipline/:_id')
   @UseGuards(JWTAuthGuard)
   async getDisciplineById(@Param('_id') _id: string, @Request() req: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (req.user.role !== 'Admin') {
+    if (req.user.role !== 'admin') {
       throw new UnauthorizedException('Không có quyền truy cập kỷ luật');
     }
 
@@ -50,14 +51,14 @@ export class KyLuatController {
     return discipline;
   }
 
-  @Post('add_discipline')
+  @Post('add-discipline')
   @UseGuards(JWTAuthGuard)
   async addDiscipline(
     @Body() createDisciplineDto: CreateDisciplineDto,
     @Request() req: any,
   ) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (req.user.role !== 'Admin') {
+    if (req.user.role !== 'admin') {
       throw new UnauthorizedException('Không có quyền thêm KL cho sinh viên');
     }
     const newDiscipline =
@@ -66,7 +67,7 @@ export class KyLuatController {
     return { message: 'Thêm KL thành công', discipline: newDiscipline };
   }
 
-  @Patch('update_discipline/:_id')
+  @Patch('update-discipline/:_id')
   @UseGuards(JWTAuthGuard)
   async updateDiscipline(
     @Param('_id') _id: string,
@@ -74,18 +75,18 @@ export class KyLuatController {
     @Request() req: any,
   ) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (req.user.role !== 'Admin') {
+    if (req.user.role !== 'admin') {
       throw new UnauthorizedException('Không có quyền cập nhật kỷ luật');
     }
 
     return this.kyLuatService.updateDiscipline(_id, createDisciplineDto);
   }
 
-  @Delete('delete_discipline/:mssv')
+  @Delete('delete-discipline/:mssv')
   @UseGuards(JWTAuthGuard)
   deleteDiscipline(@Param('mssv') mssv: string, @Request() req: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (req.user.role !== 'Admin') {
+    if (req.user.role !== 'admin') {
       throw new UnauthorizedException(
         'Không có quyền truy cập thông tin sinh viên này',
       );

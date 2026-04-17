@@ -21,6 +21,6 @@ import { PhuHuynhModule } from 'src/PhuHuynh/PhuHuynh.module';
   ],
   providers: [KyLuatService],
   controllers: [KyLuatController],
-  exports: [KyLuatService, MongooseModule],
+  exports: [KyLuatService],
 })
 export class KyLuatModule {}
