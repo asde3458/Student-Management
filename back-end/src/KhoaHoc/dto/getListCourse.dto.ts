@@ -20,4 +20,4 @@ export class GetCourseListDto {
     @IsNotEmpty({ message: 'Sort order không được thiếu' })
     @IsEnum(['asc', 'desc'])
     sortOrder?: 'asc' | 'desc';
-    }
+}
