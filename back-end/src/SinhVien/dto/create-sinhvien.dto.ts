@@ -11,7 +11,7 @@ export class CreateSinhVienDto {
 
   @IsNotEmpty()
   @IsString()
-  @IsIn(['Student'])
+  @IsIn(['student'])
   role: string;
 
   @IsNotEmpty()

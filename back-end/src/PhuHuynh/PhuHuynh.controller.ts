@@ -10,11 +10,13 @@ import {
   NotFoundException,
   Post,
   Delete,
+  Query,
 } from '@nestjs/common';
 import { AuthService } from 'src/auth/auth.service';
 import { JWTAuthGuard } from 'src/auth/guards/jwt.guard';
 import { PhuHuynhService } from './PhuHuynh.service';
 import { CreateParentsDto } from './dto/C&U-phuhuynh.dto';
+import { GetListDto } from './dto/getList.dto';
 
 @Controller('PhuHuynh')
 export class PhuHuynhController {
@@ -25,7 +27,7 @@ export class PhuHuynhController {
     private readonly phuHuynhService: PhuHuynhService,
   ) {}
 
-  @Get('get-ParentsByMSSV/:mssv')
+  @Get('get_ParentsByMSSV/:mssv')
   @UseGuards(JWTAuthGuard)
   getParents(@Param('mssv') mssv: string, @Request() req: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -37,7 +39,7 @@ export class PhuHuynhController {
     return this.phuHuynhService.getParentsByMSSV(mssv);
   }
 
-  @Get('get-parents/:_id')
+  @Get('get_parents/:_id')
   @UseGuards(JWTAuthGuard)
   async getParentsById(@Param('_id') _id: string, @Request() req: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -51,7 +53,7 @@ export class PhuHuynhController {
     return parents;
   }
 
-  @Post('add-parents/')
+  @Post('add_parents/')
   @UseGuards(JWTAuthGuard)
   async addParents(
     @Body() createParentsDto: CreateParentsDto,
@@ -66,7 +68,7 @@ export class PhuHuynhController {
     return { message: 'Thêm KL thành công', parents: newParents };
   }
 
-  @Patch('update-Parents/:_id')
+  @Patch('update_Parents/:_id')
   @UseGuards(JWTAuthGuard)
   updateParents(
     @Param('_id') _id: string,
@@ -81,7 +83,7 @@ export class PhuHuynhController {
     return this.phuHuynhService.updateParents(_id, createParentsDto);
   }
 
-  @Delete('delete-parents/:mssv')
+  @Delete('delete_parents/:mssv')
   @UseGuards(JWTAuthGuard)
   deleteParents(@Param('mssv') mssv: string, @Request() req: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -93,24 +95,31 @@ export class PhuHuynhController {
     return this.phuHuynhService.deleteParentsByMSSV(mssv);
   }
 
-  @Get('get-listnoti/:SinhVienID')
+  @Get('get_listnoti/:SinhVienID')
   @UseGuards(JWTAuthGuard)
   async getListNotifications(
     @Param('SinhVienID') SinhVienID: string,
+    @Query() query: GetListDto,
     @Request() req: any,
   ) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (req.user.role !== 'admin') {
       throw new UnauthorizedException('Không có quyền truy cập kỷ luật');
     }
-    const notifications = await this.phuHuynhService.getListNoti(SinhVienID);
+
+    const notifications = await this.phuHuynhService.getListNoti(
+      SinhVienID,
+      query,
+    );
+
     if (!notifications) {
       throw new NotFoundException('Không có thông báo nào cho phụ huynh.');
     }
+
     return notifications;
   }
 
-  @Post('send-email-to-parents/:_id')
+  @Post('send_email_to_parents/:_id')
   @UseGuards(JWTAuthGuard)
   async sendEmail(
     @Param('_id') _id: string,

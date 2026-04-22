@@ -10,7 +10,6 @@ import {
   Get,
   Delete,
   Query,
-  Req,
 } from '@nestjs/common';
 import { SinhVienService } from './SinhVien.service';
 import { CreateSinhVienDto } from './dto/create-sinhvien.dto';
@@ -27,15 +26,14 @@ export class SinhVienController {
     private readonly authService: AuthService,
   ) {}
 
-  @Post('add-student')
+  @Post('add_student')
   @UseGuards(JWTAuthGuard)
   async addStudent(
     @Body() createSinhVienDto: CreateSinhVienDto,
     @Request() req: any,
   ) {
-    console.log(req.user.role);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (req.user.role !== 'Admin') {
+    if (req.user.role !== 'admin') {
       throw new UnauthorizedException('Không có quyền thêm sinh viên');
     }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -53,11 +51,18 @@ export class SinhVienController {
   async updateStudent(
     @Param('mssv') mssv: string,
     @Body() updateSinhVienDto: UpdateSinhVienDto,
+    @Request() req: any,
   ) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    if (req.user.role !== 'admin') {
+      throw new UnauthorizedException(
+        'Không có quyền xem thông tin sinh viên này',
+      );
+    }
     return this.sinhVienService.updateStudent(mssv, updateSinhVienDto);
   }
 
-  @Get('get-student/:mssv')
+  @Get('get_student/:mssv')
   @UseGuards(JWTAuthGuard)
   getStudent(@Param('mssv') mssv: string, @Request() req: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -69,19 +74,19 @@ export class SinhVienController {
     return this.sinhVienService.getStudentByMSSV(mssv);
   }
 
-  @Get('getList-Student')
+  @Get('getList_Student')
   @UseGuards(JWTAuthGuard)
   getListStudent(@Query() query: GetListStudentDto) {
     return this.sinhVienService.getListStudent(query);
   }
 
-  @Get('search-student')
+  @Get('search_student')
   @UseGuards(JWTAuthGuard)
   async searchSinhVien(@Query('query') query: string): Promise<SinhVien[]> {
     return this.sinhVienService.searchSinhVien(query);
   }
 
-  @Delete('delete-student/:mssv')
+  @Delete('delete_student/:mssv')
   @UseGuards(JWTAuthGuard)
   async deleteStudent(@Param('mssv') mssv: string, @Request() req: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -92,18 +97,5 @@ export class SinhVienController {
     }
     await this.authService.deleteAccountByUsername(mssv);
     return this.sinhVienService.deleteStudentByMSSV(mssv);
-  }
-
-  @Get('getStudentNoti')
-  @UseGuards(JWTAuthGuard)
-  async getStudentNoti(@Req() req: any) {
-      try{
-          if (req.user.role != 'Student')
-              throw new UnauthorizedException('Bạn không có quyền lấy thông báo từ sinh viên.')
-          return this.sinhVienService.getStudentNoti(req.user.username);
-      }catch(error)
-      {
-          return {message: error.message};
-      }
   }
 }
