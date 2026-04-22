@@ -10,12 +10,13 @@ import {
   Get,
   NotFoundException,
   Delete,
+  Query,
 } from '@nestjs/common';
 import { AuthService } from 'src/auth/auth.service';
 import { KyLuatService } from './KyLuat.service';
 import { JWTAuthGuard } from 'src/auth/guards/jwt.guard';
 import { CreateDisciplineDto } from './dto/C&U-discipline.dto';
-
+import { GetListDto } from './dto/getList.dto';
 @Controller('KyLuat')
 export class KyLuatController {
   sinhVienModel: any;
@@ -24,7 +25,7 @@ export class KyLuatController {
     private readonly authService: AuthService,
   ) {}
 
-  @Get('get-disciplinebyMSSV/:mssv')
+  @Get('get_disciplinebyMSSV/:mssv')
   @UseGuards(JWTAuthGuard)
   async getStudent(@Param('mssv') mssv: string, @Request() req: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -36,7 +37,7 @@ export class KyLuatController {
     return this.kyLuatService.getDisciplineByMSSV(mssv);
   }
 
-  @Get('get-discipline/:_id')
+  @Get('get_discipline/:_id')
   @UseGuards(JWTAuthGuard)
   async getDisciplineById(@Param('_id') _id: string, @Request() req: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -51,7 +52,22 @@ export class KyLuatController {
     return discipline;
   }
 
-  @Post('add-discipline')
+  @Get('get_discipline')
+  @UseGuards(JWTAuthGuard)
+  async getListDisciplines(@Query() query: GetListDto, @Request() req: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    if (req.user.role !== 'admin') {
+      throw new UnauthorizedException('Không có quyền truy cập kỷ luật');
+    }
+
+    const discipline = await this.kyLuatService.getDisciplines(query);
+    if (!discipline) {
+      throw new NotFoundException('Kỷ luật không tồn tại');
+    }
+    return discipline;
+  }
+
+  @Post('add_discipline')
   @UseGuards(JWTAuthGuard)
   async addDiscipline(
     @Body() createDisciplineDto: CreateDisciplineDto,
@@ -67,7 +83,7 @@ export class KyLuatController {
     return { message: 'Thêm KL thành công', discipline: newDiscipline };
   }
 
-  @Patch('update-discipline/:_id')
+  @Patch('update_discipline/:_id')
   @UseGuards(JWTAuthGuard)
   async updateDiscipline(
     @Param('_id') _id: string,
@@ -82,7 +98,7 @@ export class KyLuatController {
     return this.kyLuatService.updateDiscipline(_id, createDisciplineDto);
   }
 
-  @Delete('delete-discipline/:mssv')
+  @Delete('delete_discipline/:mssv')
   @UseGuards(JWTAuthGuard)
   deleteDiscipline(@Param('mssv') mssv: string, @Request() req: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
