@@ -38,17 +38,10 @@ export class SinhVien {
   })
   TrangThai: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'Khoa' })
-  KhoaID: Types.ObjectId;
-
-  @Prop({
-    type: [{ thongBaoId: { type: Types.ObjectId, ref: 'ThongBaos' }, isRead: { type: Boolean, default: false } }],
-    default: [],
-  })
-  ThongBao: { thongBaoId: Types.ObjectId; isRead: boolean }[];
-
   @Prop({ type: Date, default: Date.now })
   ThoiGianCapNhat: Date;
+
+  @Prop({ type: Types.ObjectId, ref: 'Khoa' })
+  KhoaID: Types.ObjectId;
 }
 export const SinhVienSchema = SchemaFactory.createForClass(SinhVien);
-
