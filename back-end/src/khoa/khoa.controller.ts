@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
+  Put,
   Query,
   Req,
   UnauthorizedException,
@@ -12,12 +14,14 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { KhoaService } from './Khoa.service';
 import { JWTAuthGuard } from 'src/auth/guards/jwt.guard';
+import { KhoaService } from './Khoa.service';
 import { addKhoaDTO } from './dto/addKhoa.dto';
 import { getFacultyListDTO } from './dto/getFacultyList.dto';
+import { updateKhoaDTO } from './dto/updateKhoa.dto';
 
-@Controller('Khoa')
+
+@Controller('api/Khoa')
 export class KhoaController {
   constructor(private readonly khoaService: KhoaService) {}
 
@@ -27,11 +31,11 @@ export class KhoaController {
   async addFaculty(@Req() req: any, @Body() addKhoa: addKhoaDTO) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (req.user.role !== 'Admin')
+      if (req.user.role !== 'admin')
         throw new UnauthorizedException(
           'Bạn không có quyền thực hiện thao tác này.',
         );
-      const khoa = await this.khoaService.addKhoa(addKhoa);
+      const khoa = await this.khoaService.addFaculty(addKhoa.TenKhoa);
       return { message: 'Khoa đã được thêm thành công!', khoa };
     } catch (error) {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
@@ -39,12 +43,11 @@ export class KhoaController {
     }
   }
 
-  @Get('getFaculty/:TenKhoa')
+  @Get('getFaculty/:MaKhoa')
   @UseGuards(JWTAuthGuard)
-  async getFaculty(@Param('TenKhoa') TenKhoa: string) {
+  async getFaculty(@Param('MaKhoa') MaKhoa: string) {
     try {
-      console.log('khóa học: ', TenKhoa);
-      const khoa = await this.khoaService.getKhoa(TenKhoa);
+      const khoa = await this.khoaService.getFaculty(MaKhoa);
       if (!khoa) throw new BadRequestException('Không tìm thấy khoa.');
       return khoa;
     } catch (error) {
@@ -57,8 +60,7 @@ export class KhoaController {
   @UseGuards(JWTAuthGuard)
   async getFacultyByID(@Param('id') id: string) {
     try {
-      console.log('khóa học: ', id);
-      const khoa = await this.khoaService.getKhoaByID(id);
+      const khoa = await this.khoaService.getFacultyByID(id);
       if (!khoa) throw new BadRequestException('Không tìm thấy khoa.');
       return khoa;
     } catch (error) {
@@ -72,6 +74,44 @@ export class KhoaController {
   async getListFaculty(@Query() query: getFacultyListDTO) {
     try {
       return this.khoaService.getListFaculty(query);
+    } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      return error;
+    }
+  }
+
+  @Delete('deleteFaculty/:MaKhoa')
+  @UseGuards(JWTAuthGuard)
+  async deleteFaculty(@Req() req: any, @Param('MaKhoa') MaKhoa: string) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      if (req.user.role !== 'admin')
+        throw new UnauthorizedException(
+          'Bạn không có quyền thực hiện thao tác này.',
+        );
+      const khoa = await this.khoaService.deleteFaculty(MaKhoa);
+      return { message: 'Khoa đã được xóa thành công!', khoa };
+    } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      return error;
+    }
+  }
+
+  @Put('updateFaculty/:MaKhoa')
+  @UseGuards(JWTAuthGuard)
+  @UsePipes(new ValidationPipe())
+  async updateFaculty(
+    @Req() req: any,
+    @Param('MaKhoa') MaKhoa: string,
+    @Body() updateDTO: updateKhoaDTO,
+  ) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      if (req.user.role !== 'admin')
+        throw new UnauthorizedException(
+          'Bạn không có quyền thực hiện thao tác này.',
+        );
+      return this.khoaService.updateFaculty(MaKhoa, updateDTO);
     } catch (error) {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       return error;

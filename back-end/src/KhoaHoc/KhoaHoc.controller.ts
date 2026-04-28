@@ -20,7 +20,7 @@ import { AddCourseDto } from 'src/KhoaHoc/dto/add-KhoaHoc.dto';
 import { GetCourseListDto } from './dto/getListCourse.dto';
 import { UpdateCourseDto } from './dto/updateCourse.dto';
 
-@Controller('KhoaHoc')
+@Controller('api/KhoaHoc')
 export class KhoaHocController {
   constructor(private readonly khoaHocService: KhoaHocService) {}
 
@@ -81,7 +81,7 @@ export class KhoaHocController {
   async addCourse(@Req() req: any, @Body() body: AddCourseDto) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (req.user.role !== 'Admin')
+      if (req.user.role !== 'admin')
         throw new UnauthorizedException(
           'Bạn không có quyền thực hiện thao tác này.',
         );
@@ -103,7 +103,7 @@ export class KhoaHocController {
   ) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (req.user.role !== 'Admin')
+      if (req.user.role !== 'admin')
         throw new UnauthorizedException(
           'Bạn không có quyền thực hiện thao tác này.',
         );
@@ -120,10 +120,10 @@ export class KhoaHocController {
   async deleteCourse(@Req() req: any, @Param('MaKhoaHoc') MaKhoaHoc: string) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (req.user.role !== 'Admin')
+      if (req.user.role !== 'admin')
         throw new UnauthorizedException('Bạn không có quyền xóa khóa học.');
       await this.khoaHocService.deleteCourse(MaKhoaHoc);
-      return { message: 'Khóa học đã được xóa thành công' };
+      return { code: 200, message: 'Khóa học đã được xóa thành công' };
     } catch (error) {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       return { message: error.message };
@@ -149,6 +149,9 @@ export class KhoaHocController {
   ) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     const username = req.user.username;
+    // console.log(studentId);
+    // const studentId = new Types.ObjectId(req.user.userId); // lấy ID sinh viên từ token
+
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     return this.khoaHocService.registerStudentToCourse(MaKHoaHoc, username);
   }
@@ -161,7 +164,7 @@ export class KhoaHocController {
     @Req() req: any,
   ) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (req.user.role !== 'Admin')
+    if (req.user.role !== 'admin')
       throw new UnauthorizedException('Bạn không có quyền xóa khóa học.');
     console.log(MaKHoaHoc, body.mssv);
     return this.khoaHocService.addStudentToCourseByAdmin(MaKHoaHoc, body.mssv);
@@ -175,7 +178,7 @@ export class KhoaHocController {
     @Req() req: any,
   ) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (req.user.role !== 'Admin')
+    if (req.user.role !== 'admin')
       throw new UnauthorizedException(
         'Bạn không có quyền xóa sinh viên khỏi khóa học.',
       );
@@ -184,4 +187,26 @@ export class KhoaHocController {
       body.mssv,
     );
   }
+
+  @Get('files/:khoaHocId')
+  @UseGuards(JWTAuthGuard)
+  async getFilesByKhoaHocId(@Req() req: any,@Param('khoaHocId') khoaHocId: string) {
+      
+      const files = await this.khoaHocService.getFilesByKhoaHocId(khoaHocId);
+      return { message: 'Danh sách tài liệu của khóa học', files };
+  }
+
+    @Delete('removeFile/:khoaHocId/:taiLieuId')
+    @UseGuards(JWTAuthGuard)
+    async removeFile(@Req() req: any, @Param('khoaHocId') khoaHocId: string, @Param('taiLieuId') taiLieuId: string){
+        
+        try {
+            if (req.user.role !== "admin" && req.user.role !=="teacher")
+                throw new UnauthorizedException('Không có quyền thực hiện thao tác này')
+            const result = await this.khoaHocService.deleteFile(khoaHocId, taiLieuId, req.user);
+            return result;
+        } catch (error) {
+            return { message: error.message };
+        }
+    }
 }

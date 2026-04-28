@@ -21,7 +21,7 @@ import { UpdateGiangVienDto } from './dto/update-giangvien.dto';
 import { AddTeacherDto } from './dto/add-giangvien.dto';
 import { GetTeacherListDto } from './dto/getListGiangVien.dto';
 
-@Controller('GiangVien')
+@Controller('api/GiangVien')
 export class GiangVienController {
   constructor(
     private readonly GiangVienService: GiangVienService,
@@ -61,16 +61,14 @@ export class GiangVienController {
   @UsePipes(new ValidationPipe())
   async addTeacher(@Req() req: any, @Body() body: AddTeacherDto) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (req.user.role !== 'Admin')
+    if (req.user.role !== 'admin')
       throw new UnauthorizedException(
         'Bạn không có quyền thực hiện thao tác này.',
       );
-
     const username = await this.GiangVienService.generateUsername(body.HoTen);
     const email = `${username}@student.hcmus.edu.vn`;
     const password = username;
-    const role = 'Teacher';
-
+    const role = 'teacher';
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const registrationResult = await this.AuthService.register(
       username,
@@ -78,14 +76,12 @@ export class GiangVienController {
       password,
       role,
     );
-
     const newGiaoVien = await this.GiangVienService.addTeacher(
       username,
       body.HoTen,
       body.ChucVu,
       body.KhoaID,
     );
-
     return { message: 'Giảng viên đã được thêm thành công!', newGiaoVien };
   }
 
@@ -94,7 +90,7 @@ export class GiangVienController {
   async deleteTeacher(@Req() req: any, @Param('MaGV') MaGV: string) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (req.user.role !== 'Admin')
+      if (req.user.role !== 'admin')
         throw new UnauthorizedException('Bạn không có quyền xóa giáo viên.');
       await this.GiangVienService.deleteTeacher(MaGV);
       return { message: 'Giảng viên đã được xóa thành công' };
@@ -111,5 +107,22 @@ export class GiangVienController {
     @Body() updateGiangVienDto: UpdateGiangVienDto,
   ) {
     return this.GiangVienService.updateTeacher(MaGV, updateGiangVienDto);
+  }
+
+  @Get('getTeacherNoti')
+  @UseGuards(JWTAuthGuard)
+  async getTeacherNoti(@Req() req: any) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      if (req.user.role != 'teacher')
+        throw new UnauthorizedException(
+          'Bạn không có quyền lấy thông báo từ giáo viên.',
+        );
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+      return this.GiangVienService.getTeacherNoti(req.user.username);
+    } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      return { message: error.message };
+    }
   }
 }

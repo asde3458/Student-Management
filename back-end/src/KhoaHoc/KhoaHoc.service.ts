@@ -11,6 +11,7 @@ import { GetCourseListDto } from './dto/getListCourse.dto';
 import { UpdateCourseDto } from './dto/updateCourse.dto';
 import { SinhVienService } from 'src/SinhVien/SinhVien.service';
 import { GiangVien, GiangVienDocument } from 'src/schemas/GiangVien.schema';
+import { UploadService } from 'src/upload/upload.service';
 
 @Injectable()
 export class KhoaHocService {
@@ -18,8 +19,8 @@ export class KhoaHocService {
     @InjectModel(KhoaHoc.name)
     private readonly khoaHocModel: Model<KhoaHocDocument>,
     private readonly sinhVienService: SinhVienService,
-    @InjectModel(GiangVien.name)
-    private readonly giangVienModel: Model<GiangVienDocument>,
+    private readonly uploadService: UploadService,
+    @InjectModel(GiangVien.name) private readonly giangVienModel: Model<GiangVienDocument>,
   ) {}
 
   async addCourse(KhoaHocdto: AddCourseDto) {
@@ -114,6 +115,9 @@ export class KhoaHocService {
     return khoaHoc;
   }
 
+  async getCourseByID(KhoaHocID: string) {
+    return await this.khoaHocModel.findById(KhoaHocID).exec();
+  }
   async getListCourse(query: GetCourseListDto) {
     const { pageSize, pageNumber, sortBy, sortOrder } = query;
 
@@ -200,7 +204,9 @@ export class KhoaHocService {
       throw new NotFoundException('Khóa học không tồn tại');
     }
     const sinhVien = await this.sinhVienService.getStudentByMSSV(username);
-    if (sinhVien.KhoaID.toString() !== khoaHoc.KhoaID.toString())
+    console.log('sinh vien id: ',sinhVien.KhoaID.toString());
+    console.log('khóa học id: ',khoaHoc.KhoaID.toString())
+    if (sinhVien.KhoaID._id.toString() !== khoaHoc.KhoaID.toString())
       throw new BadRequestException(
         'Sinh viên không thể đăng kí khóa học này.',
       );
@@ -215,7 +221,6 @@ export class KhoaHocService {
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     const sinhVienId = (sinhVien as any)._id as Types.ObjectId;
-    console.log(sinhVienId);
     if (!khoaHoc.SinhVienDangKy.includes(sinhVienId)) {
       khoaHoc.SinhVienDangKy.push(sinhVienId);
       khoaHoc.SoLuongSinhVienDangKy += 1;
@@ -225,6 +230,7 @@ export class KhoaHocService {
       throw new BadRequestException('Sinh viên đã đăng ký khóa học này.');
     }
   }
+  // const studentObjectId = new Types.ObjectId(studentId);
 
   async addStudentToCourseByAdmin(MaKhoaHoc: string, mssv: string) {
     const khoaHoc = await this.khoaHocModel.findOne({ MaKhoaHoc });
@@ -232,14 +238,14 @@ export class KhoaHocService {
       throw new NotFoundException('Khóa học không tồn tại');
     }
     const sinhVien = await this.sinhVienService.getStudentByMSSV(mssv);
-    if (sinhVien.KhoaID.toString() !== khoaHoc.KhoaID.toString())
+    console.log(sinhVien.KhoaID.toString());
+    if (sinhVien.KhoaID._id.toString() !== khoaHoc.KhoaID.toString())
       throw new BadRequestException(
         'Sinh viên không thể đăng kí khóa học này.',
       );
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     const sinhVienId = (sinhVien as any)._id as Types.ObjectId;
-    console.log(sinhVienId);
 
     if (!khoaHoc.SinhVienDangKy.includes(sinhVienId)) {
       khoaHoc.SinhVienDangKy.push(sinhVienId);
@@ -276,5 +282,23 @@ export class KhoaHocService {
         'Sinh viên không có trong danh sách khóa học này.',
       );
     }
+  }
+
+  async getFilesByKhoaHocId(khoaHocId: string) {
+    const khoaHoc = await this.khoaHocModel.findById(khoaHocId).exec();
+    if (!khoaHoc) {
+      throw new NotFoundException(`Không tìm thấy khóa học với ID ${khoaHocId}`);
+    }
+
+    const files = await this.khoaHocModel.findById(khoaHocId).populate('TaiLieu').exec();
+    return files?.TaiLieu;
+}
+
+async deleteFile(khoaHocId: string, taiLieuId: string, user: any) {
+    
+    const khoaHoc = await this.khoaHocModel.findById(khoaHocId).exec();
+    if (!khoaHoc) throw new NotFoundException(`Không tìm thấy khóa học ${khoaHocId}`);
+
+    return await this.uploadService.deleteFile(taiLieuId, khoaHocId, user);
   }
 }

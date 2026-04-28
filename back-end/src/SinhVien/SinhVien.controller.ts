@@ -10,6 +10,9 @@ import {
   Get,
   Delete,
   Query,
+  Req,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { SinhVienService } from './SinhVien.service';
 import { CreateSinhVienDto } from './dto/create-sinhvien.dto';
@@ -18,8 +21,10 @@ import { AuthService } from '../auth/auth.service';
 import { JWTAuthGuard } from '../auth/guards/jwt.guard';
 import { SinhVien } from 'src/schemas/SinhVien.schema';
 import { GetListStudentDto } from './dto/getList-sinhvien.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import * as multer from 'multer';
 
-@Controller('sinhvien')
+@Controller('api/sinhvien')
 export class SinhVienController {
   constructor(
     private readonly sinhVienService: SinhVienService,
@@ -44,6 +49,39 @@ export class SinhVienController {
 
     await this.authService.register(username, email, password, role);
     return this.sinhVienService.addStudent(createSinhVienDto);
+  }
+
+  @Post('import')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (req, file, callback) => {
+        const allowedMimeTypes = [
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+          'application/vnd.ms-excel', // .xls
+        ];
+
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          return callback(new Error('Chỉ chấp nhận file Excel!'), false);
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async importExcel(
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<string> {
+    if (!file) {
+      throw new Error('Không có file được gửi lên!');
+    }
+    try {
+      await this.sinhVienService.importExcel(file);
+      return 'File imported successfully!';
+    } catch (error) {
+      console.error('Lỗi khi xử lý file:', error);
+      throw new Error('Lỗi khi xử lý file');
+    }
   }
 
   @Patch('update-student/:mssv')
@@ -97,5 +135,22 @@ export class SinhVienController {
     }
     await this.authService.deleteAccountByUsername(mssv);
     return this.sinhVienService.deleteStudentByMSSV(mssv);
+  }
+
+  @Get('getStudentNoti')
+  @UseGuards(JWTAuthGuard)
+  async getStudentNoti(@Req() req: any) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      if (req.user.role != 'student')
+        throw new UnauthorizedException(
+          'Bạn không có quyền lấy thông báo từ sinh viên.',
+        );
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+      return this.sinhVienService.getStudentNoti(req.user.username);
+    } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      return { message: error.message };
+    }
   }
 }
